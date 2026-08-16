@@ -1,0 +1,157 @@
+# Per-workload authorization. NetworkPolicy answers "can these pods route to
+# each other"; this answers "is the caller who it claims to be, and is it allowed
+# to call this port". Identity comes from the mesh certificate, which is derived
+# from the ServiceAccount, so a compromised pod cannot impersonate another
+# workload even from inside the same namespace.
+#
+# Apply this and verify traffic still flows BEFORE setting
+# mesh_enforce_authz = true in terraform/03-security.
+#
+# Envsubst: none
+---
+# Keycloak's HTTP port is a Server: a named target that policies attach to.
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: keycloak-http
+  namespace: identity
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: keycloak
+  port: 8080
+  proxyProtocol: HTTP/1
+---
+# Only the ingress controller and the admin console may reach Keycloak. The
+# applications reach it too, for JWKS.
+apiVersion: policy.linkerd.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: keycloak-http
+  namespace: identity
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: keycloak-http
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+      name: keycloak-callers
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: MeshTLSAuthentication
+metadata:
+  name: keycloak-callers
+  namespace: identity
+spec:
+  identities:
+    - "ingress-nginx.ingress-nginx.serviceaccount.identity.linkerd.cluster.local"
+    - "identity-admin.identity.serviceaccount.identity.linkerd.cluster.local"
+    - "admin-proxy-oauth2-proxy.identity.serviceaccount.identity.linkerd.cluster.local"
+    - "api.api.serviceaccount.identity.linkerd.cluster.local"
+    - "web.web.serviceaccount.identity.linkerd.cluster.local"
+    - "jobs.jobs.serviceaccount.identity.linkerd.cluster.local"
+---
+# The admin console is the highest-value target in the cluster: it can change who
+# is allowed to sign in. Only the authenticating proxy may reach it, never the
+# ingress controller directly.
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: identity-admin-http
+  namespace: identity
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: identity-admin
+  port: 8080
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: identity-admin-http
+  namespace: identity
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: identity-admin-http
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+      name: identity-admin-callers
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: MeshTLSAuthentication
+metadata:
+  name: identity-admin-callers
+  namespace: identity
+spec:
+  identities:
+    - "ingress-nginx.ingress-nginx.serviceaccount.identity.linkerd.cluster.local"
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: Server
+metadata:
+  name: api-http
+  namespace: api
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  port: 8080
+  proxyProtocol: HTTP/1
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: api-http
+  namespace: api
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: api-http
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: MeshTLSAuthentication
+      name: api-callers
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: MeshTLSAuthentication
+metadata:
+  name: api-callers
+  namespace: api
+spec:
+  identities:
+    - "ingress-nginx.ingress-nginx.serviceaccount.identity.linkerd.cluster.local"
+---
+# Health probes come from the kubelet, which is not in the mesh. Without this the
+# probes fail closed and the pods never become ready.
+apiVersion: policy.linkerd.io/v1beta1
+kind: NetworkAuthentication
+metadata:
+  name: kubelet
+  namespace: api
+spec:
+  networks:
+    - cidr: 10.0.0.0/8
+    - cidr: 172.16.0.0/12
+    - cidr: 192.168.0.0/16
+---
+apiVersion: policy.linkerd.io/v1beta1
+kind: AuthorizationPolicy
+metadata:
+  name: api-probes
+  namespace: api
+spec:
+  targetRef:
+    group: policy.linkerd.io
+    kind: Server
+    name: api-http
+  requiredAuthenticationRefs:
+    - group: policy.linkerd.io
+      kind: NetworkAuthentication
+      name: kubelet

@@ -1,0 +1,70 @@
+# Governance policies. These make the segmentation model self-enforcing: a new
+# namespace cannot quietly appear without an owner or without a default-deny
+# network policy.
+#
+# Envsubst: FAILURE_ACTION
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-namespace-ownership
+  annotations:
+    policies.kyverno.io/title: Namespaces need an owner
+    policies.kyverno.io/category: Governance
+    policies.kyverno.io/description: >-
+      An unowned namespace is an unreviewed namespace. Auditors ask who is
+      accountable for each one; this makes the answer a field rather than tribal
+      knowledge.
+spec:
+  validationFailureAction: ${FAILURE_ACTION}
+  background: true
+  rules:
+    - name: owner-label
+      match:
+        any:
+          - resources:
+              kinds: [Namespace]
+      exclude:
+        any:
+          - resources:
+              names: [kube-system, kube-public, kube-node-lease, default, linkerd, kyverno, falco, cert-manager, ingress-nginx]
+      validate:
+        message: "Set the app.kubernetes.io/part-of and platform.acme/owner labels."
+        pattern:
+          metadata:
+            labels:
+              app.kubernetes.io/part-of: "?*"
+              platform.acme/owner: "?*"
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: add-default-deny-to-new-namespaces
+  annotations:
+    policies.kyverno.io/title: Segment new namespaces automatically
+    policies.kyverno.io/category: Segmentation
+    policies.kyverno.io/description: >-
+      Generates a deny-all NetworkPolicy the moment a namespace is created, so
+      there is no window in which a new namespace is open.
+spec:
+  rules:
+    - name: generate-deny-all
+      match:
+        any:
+          - resources:
+              kinds: [Namespace]
+      exclude:
+        any:
+          - resources:
+              names: [kube-system, kube-public, kube-node-lease, default, linkerd, kyverno, falco, cert-manager, ingress-nginx]
+      generate:
+        apiVersion: networking.k8s.io/v1
+        kind: NetworkPolicy
+        name: zt-default-deny-all
+        namespace: "{{request.object.metadata.name}}"
+        synchronize: true
+        data:
+          spec:
+            podSelector: {}
+            policyTypes:
+              - Ingress
+              - Egress
