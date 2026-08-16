@@ -8,4 +8,4 @@ git pull origin test
 git merge dev
 
 # 4. Push the merged changes to your remote repository
-git push origin test
+git push origin testgit merge dev
