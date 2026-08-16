@@ -1,0 +1,7 @@
+The diagram (persisted as an artifact) shows the same chain-and-fork topology from before, but now every link is labeled with its actual medium — DIA fiber over LC/SFP+ for the internet-routed legs, Equinix Fabric virtual circuits for the private ones — plus rack elevations for each of the three site types (edge enclosure, comm-closet rack, Equinix 42U cabinet) with power feeds and physical security called out.
+
+The design doc walks through the reasoning per hop, the rack/site specs, and — this is the part meant to actually be handed to whoever provisions this — concrete procurement guidance: get competing DIA quotes from carriers like Lumen or Zayo, order Equinix Fabric ports directly through their portal, and request each cloud's on-ramp (Direct Connect, ExpressRoute, etc.) from that provider's own console before accepting it on the Fabric side.
+
+The spreadsheet is the itemized version of both: a 12-row circuit BOM (medium, connector, optics, bandwidth, lead time, real carrier examples) and a hardware BOM per site type, with a couple of live formulas so the summary counts stay correct if rows get added later.
+
+One thing worth flagging: the biggest real-world efficiency in here is that AWS, Azure, GCP, and IBM Cloud all ride the same physical Equinix Fabric port at COLO B as separate virtual circuits — one cross-connect, four cloud on-ramps — which is normal Equinix practice, not a shortcut I took. DigitalOcean is the one exception that stays on plain internet-routed DIA since it has no private on-ramp product.

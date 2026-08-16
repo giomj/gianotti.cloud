@@ -1,0 +1,327 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Alpha-Phase Hybrid Cloud Mesh — Physical Layer &amp; Site Architecture</title>
+<style>
+  :root{
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --surface-2:      #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --hairline:       #e1e0d9;
+    --border-ring:    rgba(11,11,11,0.10);
+
+    --zone-owned:      #2a78d6;
+    --zone-colo:       #1baf7a;
+    --zone-ovh:        #eb6834;
+    --zone-hyper:      #4a3aa7;
+    --link-primary:    #2a78d6;
+    --link-mesh:       #eb6834;
+    --power-a:         #2a78d6;
+    --power-b:         #eb6834;
+
+    --zone-owned-fill:  rgba(42,120,214,0.07);
+    --zone-colo-fill:   rgba(27,175,122,0.09);
+    --zone-ovh-fill:    rgba(235,104,52,0.07);
+    --zone-hyper-fill:  rgba(74,58,167,0.08);
+    --zone-neutral-fill: rgba(82,81,78,0.05);
+    --status-good: #0ca30c;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])){
+      color-scheme: dark;
+      --surface-1:      #1a1a19; --surface-2:      #0d0d0d;
+      --text-primary:   #ffffff; --text-secondary: #c3c2b7; --text-muted:     #898781;
+      --hairline:       #2c2c2a; --border-ring:    rgba(255,255,255,0.10);
+      --zone-owned:      #3987e5; --zone-colo:       #199e70; --zone-ovh:        #d95926; --zone-hyper:      #9085e9;
+      --link-primary:    #3987e5; --link-mesh:       #d95926;
+      --power-a:          #3987e5; --power-b: #d95926;
+      --zone-owned-fill:  rgba(57,135,229,0.14); --zone-colo-fill:   rgba(25,158,112,0.16);
+      --zone-ovh-fill:    rgba(217,89,38,0.14); --zone-hyper-fill:  rgba(144,133,233,0.16);
+      --zone-neutral-fill: rgba(195,194,183,0.08);
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --surface-1:      #1a1a19; --surface-2:      #0d0d0d;
+    --text-primary:   #ffffff; --text-secondary: #c3c2b7; --text-muted:     #898781;
+    --hairline:       #2c2c2a; --border-ring:    rgba(255,255,255,0.10);
+    --zone-owned:      #3987e5; --zone-colo:       #199e70; --zone-ovh:        #d95926; --zone-hyper:      #9085e9;
+    --link-primary:    #3987e5; --link-mesh:       #d95926;
+    --power-a:          #3987e5; --power-b: #d95926;
+    --zone-owned-fill:  rgba(57,135,229,0.14); --zone-colo-fill:   rgba(25,158,112,0.16);
+    --zone-ovh-fill:    rgba(217,89,38,0.14); --zone-hyper-fill:  rgba(144,133,233,0.16);
+    --zone-neutral-fill: rgba(195,194,183,0.08);
+  }
+
+  *{box-sizing:border-box;}
+  body{ margin:0; font-family: system-ui, -apple-system, "Segoe UI", sans-serif; background: var(--surface-2); color: var(--text-primary); padding: 28px 20px 60px; }
+  .wrap{ max-width: 1760px; margin: 0 auto; }
+  header{ margin-bottom: 18px; display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;}
+  h1{ font-size: 22px; margin: 0 0 6px; letter-spacing:-0.01em; }
+  .subtitle{ color: var(--text-secondary); font-size: 14px; max-width: 1050px; line-height:1.5; margin:0; }
+  .theme-toggle{ border:1px solid var(--border-ring); background:var(--surface-1); color:var(--text-secondary); border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer; }
+  .diagram-card{ background: var(--surface-1); border: 1px solid var(--border-ring); border-radius: 16px; padding: 8px; overflow-x: auto; }
+  svg text{ font-family: system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--text-primary); }
+  .lbl-sm{ font-size: 11px; }
+  .lbl-xs{ font-size: 9.5px; fill: var(--text-secondary); }
+  .lbl-title{ font-size: 12.5px; font-weight: 700; }
+  .lbl-band-title{ font-size: 12.5px; font-weight:700; fill: var(--text-secondary); letter-spacing:0.03em; }
+  .box{ fill: var(--surface-1); stroke: var(--border-ring); stroke-width:1.25; }
+  .box-owned{ stroke: var(--zone-owned); } .box-colo{ stroke: var(--zone-colo); }
+  .box-ovh{ stroke: var(--zone-ovh); } .box-hyper{ stroke: var(--zone-hyper); }
+  .fill-owned{ fill: var(--zone-owned-fill); } .fill-colo{ fill: var(--zone-colo-fill); }
+  .fill-ovh{ fill: var(--zone-ovh-fill); } .fill-hyper{ fill: var(--zone-hyper-fill); }
+  .fill-neutral{ fill: var(--zone-neutral-fill); stroke: var(--hairline); }
+  .link-primary{ stroke: var(--link-primary); stroke-width:3; fill:none; stroke-linecap:round; }
+  .link-mesh{ stroke: var(--link-mesh); stroke-width:2; fill:none; stroke-dasharray:5 5; stroke-linecap:round; }
+  .badge-bg{ fill: var(--link-primary); }
+  .badge-txt{ fill:#ffffff; font-size:11px; font-weight:700; }
+  .rack-block{ fill: var(--surface-1); stroke: var(--border-ring); stroke-width:1; }
+  .rack-frame{ fill: none; stroke: var(--text-secondary); stroke-width:1.5; }
+  .power-a{ fill: var(--power-a); } .power-b{ fill: var(--power-b); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Alpha-Phase Hybrid Cloud Mesh — Physical Layer &amp; Site Architecture</h1>
+      <p class="subtitle">The physical medium underneath every WireGuard+eBGP hop from the earlier logical diagram: circuit types, cable/connector/transceiver choices per hop, representative rack elevations, and power/physical-security posture per site type. Site names remain illustrative; carrier and cloud on-ramp product names are real, current products cited for procurement planning.</p>
+    </div>
+    <button class="theme-toggle" onclick="const r=document.documentElement; r.setAttribute('data-theme', r.getAttribute('data-theme')==='dark'?'light':'dark');">Toggle theme</button>
+  </header>
+
+  <div class="diagram-card">
+    <svg viewBox="0 0 1700 1180" width="1700" height="1180" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrowP" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--link-primary)"></path></marker>
+        <marker id="arrowM" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto"><path d="M0,0 L6,3 L0,6 Z" fill="var(--link-mesh)"></path></marker>
+      </defs>
+
+      <text x="60" y="30" class="lbl-band-title">PHYSICAL PATH — CIRCUIT TYPE, MEDIUM &amp; OPTICS PER HOP</text>
+
+      <!-- Chain boxes -->
+      <rect class="box box-owned fill-owned" x="60" y="44" width="300" height="130" rx="10"></rect>
+      <text x="210" y="64" text-anchor="middle" class="lbl-title">Edge Pod</text>
+      <text x="210" y="82" text-anchor="middle" class="lbl-xs">FTTP/broadband DIA + 5G/LTE failover</text>
+      <text x="210" y="98" text-anchor="middle" class="lbl-xs">RJ45 copper · SFP (fiber ONT)</text>
+      <text x="210" y="118" text-anchor="middle" class="lbl-sm" font-weight="600">≤1 Gbps primary</text>
+      <text x="210" y="134" text-anchor="middle" class="lbl-xs">no dual-homed NIC — failover at WAN router</text>
+      <text x="210" y="156" text-anchor="middle" class="lbl-xs">Power: single feed + small UPS</text>
+
+      <rect class="box box-owned fill-owned" x="380" y="44" width="300" height="130" rx="10"></rect>
+      <text x="530" y="64" text-anchor="middle" class="lbl-title">Comm Closet Pod</text>
+      <text x="530" y="82" text-anchor="middle" class="lbl-xs">Dedicated Internet Access (DIA), fiber</text>
+      <text x="530" y="98" text-anchor="middle" class="lbl-xs">LC duplex, single-mode · SFP+ 10GBASE-LR</text>
+      <text x="530" y="118" text-anchor="middle" class="lbl-sm" font-weight="600">1–10 Gbps primary</text>
+      <text x="530" y="134" text-anchor="middle" class="lbl-xs">+ diverse-carrier backup DIA</text>
+      <text x="530" y="156" text-anchor="middle" class="lbl-xs">Power: utility + building UPS</text>
+
+      <rect class="box box-colo fill-colo" x="700" y="44" width="300" height="130" rx="10"></rect>
+      <text x="850" y="64" text-anchor="middle" class="lbl-title">Equinix COLO A</text>
+      <text x="850" y="82" text-anchor="middle" class="lbl-xs">DIA fiber, or private via Equinix Fabric</text>
+      <text x="850" y="98" text-anchor="middle" class="lbl-xs">LC duplex · SFP+ (10G) / QSFP28 (100G)</text>
+      <text x="850" y="118" text-anchor="middle" class="lbl-sm" font-weight="600">1–100 Gbps (port-dependent)</text>
+      <text x="850" y="134" text-anchor="middle" class="lbl-xs">facility cross-connect, single-mode</text>
+      <text x="850" y="156" text-anchor="middle" class="lbl-xs">Power: A+B feeds, facility UPS/generator</text>
+
+      <rect class="box box-ovh fill-ovh" x="1020" y="44" width="300" height="130" rx="10"></rect>
+      <text x="1170" y="64" text-anchor="middle" class="lbl-title">OVH Cloud</text>
+      <text x="1170" y="82" text-anchor="middle" class="lbl-xs">DIA fiber (OVH uplink or carrier)</text>
+      <text x="1170" y="98" text-anchor="middle" class="lbl-xs">LC duplex · SFP+ 10GBASE-LR</text>
+      <text x="1170" y="118" text-anchor="middle" class="lbl-sm" font-weight="600">1–10 Gbps primary</text>
+      <text x="1170" y="134" text-anchor="middle" class="lbl-xs">+ backup DIA, diverse carrier</text>
+      <text x="1170" y="156" text-anchor="middle" class="lbl-xs">Power: facility-provided (OVH bare-metal)</text>
+
+      <rect class="box box-colo fill-colo" x="1340" y="44" width="300" height="130" rx="10"></rect>
+      <text x="1490" y="64" text-anchor="middle" class="lbl-title">Equinix COLO B</text>
+      <text x="1490" y="82" text-anchor="middle" class="lbl-xs">Equinix Fabric — multicloud on-ramp hub</text>
+      <text x="1490" y="98" text-anchor="middle" class="lbl-xs">LC duplex · SFP+ / QSFP28</text>
+      <text x="1490" y="118" text-anchor="middle" class="lbl-sm" font-weight="600">1 physical port → 5 virtual circuits</text>
+      <text x="1490" y="134" text-anchor="middle" class="lbl-xs">software-defined fan-out, see Note below</text>
+      <text x="1490" y="156" text-anchor="middle" class="lbl-xs">Power: A+B feeds, facility UPS/generator</text>
+
+      <path class="link-primary" d="M360,108 L380,108" marker-end="url(#arrowP)"></path>
+      <circle class="badge-bg" cx="370" cy="108" r="10"></circle><text x="370" y="112" text-anchor="middle" class="badge-txt">1</text>
+      <path class="link-primary" d="M680,108 L700,108" marker-end="url(#arrowP)"></path>
+      <circle class="badge-bg" cx="690" cy="108" r="10"></circle><text x="690" y="112" text-anchor="middle" class="badge-txt">2</text>
+      <path class="link-primary" d="M1000,108 L1020,108" marker-end="url(#arrowP)"></path>
+      <circle class="badge-bg" cx="1010" cy="108" r="10"></circle><text x="1010" y="112" text-anchor="middle" class="badge-txt">3</text>
+      <path class="link-primary" d="M1320,108 L1340,108" marker-end="url(#arrowP)"></path>
+      <circle class="badge-bg" cx="1330" cy="108" r="10"></circle><text x="1330" y="112" text-anchor="middle" class="badge-txt">4</text>
+
+      <text x="60" y="255" class="lbl-band-title">PARALLEL MULTICLOUD FORK — ONE PHYSICAL PORT, FIVE ON-RAMPS</text>
+
+      <path class="link-primary" d="M1490,174 C1490,230 210,230 210,270" marker-end="url(#arrowP)"></path>
+      <path class="link-primary" d="M1490,174 C1490,230 530,230 530,270" marker-end="url(#arrowP)"></path>
+      <path class="link-primary" d="M1490,174 L1490,270" marker-end="url(#arrowP)"></path>
+      <path class="link-primary" d="M1490,174 C1490,230 1170,230 1170,270" marker-end="url(#arrowP)"></path>
+      <path class="link-primary" d="M1490,174 C1490,230 850,230 850,270" marker-end="url(#arrowP)"></path>
+      <circle class="badge-bg" cx="1490" cy="230" r="10"></circle><text x="1490" y="234" text-anchor="middle" class="badge-txt">5</text>
+
+      <!-- Mesh redundancy: Equinix A <-> Equinix B (Fabric inter-metro), drawn after the fan-out so its halo'd label sits on top -->
+      <path class="link-mesh" d="M1000,174 C1000,196 1490,196 1490,174" marker-end="url(#arrowM)"></path>
+      <rect x="1120" y="200" width="330" height="15" fill="var(--surface-1)"></rect>
+      <text x="1285" y="211" text-anchor="middle" class="lbl-xs" style="fill:var(--link-mesh)">redundant: Equinix Fabric inter-metro virtual connection (bypasses OVH)</text>
+
+      <rect class="box box-hyper fill-hyper" x="60" y="270" width="300" height="120" rx="10"></rect>
+      <text x="210" y="290" text-anchor="middle" class="lbl-title">DigitalOcean Pod</text>
+      <text x="210" y="308" text-anchor="middle" class="lbl-xs">DIA over public internet</text>
+      <text x="210" y="324" text-anchor="middle" class="lbl-xs">LC duplex · SFP+ · no private on-ramp exists</text>
+      <text x="210" y="344" text-anchor="middle" class="lbl-sm" font-weight="600">1–10 Gbps</text>
+      <text x="210" y="362" text-anchor="middle" class="lbl-xs">Power/security: provider-managed</text>
+
+      <rect class="box box-hyper fill-hyper" x="380" y="270" width="300" height="120" rx="10"></rect>
+      <text x="530" y="290" text-anchor="middle" class="lbl-title">AWS Pod</text>
+      <text x="530" y="308" text-anchor="middle" class="lbl-xs">AWS Direct Connect via Equinix Fabric</text>
+      <text x="530" y="324" text-anchor="middle" class="lbl-xs">LC duplex · SFP+/QSFP28 · 802.1Q VLAN</text>
+      <text x="530" y="344" text-anchor="middle" class="lbl-sm" font-weight="600">1–10 Gbps virtual interface</text>
+      <text x="530" y="362" text-anchor="middle" class="lbl-xs">Power/security: provider-managed</text>
+
+      <rect class="box box-hyper fill-hyper" x="700" y="270" width="300" height="120" rx="10"></rect>
+      <text x="850" y="290" text-anchor="middle" class="lbl-title">Azure Pod</text>
+      <text x="850" y="308" text-anchor="middle" class="lbl-xs">Azure ExpressRoute via Equinix Fabric</text>
+      <text x="850" y="324" text-anchor="middle" class="lbl-xs">LC duplex · SFP+/QSFP28 · 802.1Q VLAN</text>
+      <text x="850" y="344" text-anchor="middle" class="lbl-sm" font-weight="600">1–10 Gbps virtual interface</text>
+      <text x="850" y="362" text-anchor="middle" class="lbl-xs">Power/security: provider-managed</text>
+
+      <rect class="box box-hyper fill-hyper" x="1020" y="270" width="300" height="120" rx="10"></rect>
+      <text x="1170" y="290" text-anchor="middle" class="lbl-title">GCP Pod</text>
+      <text x="1170" y="308" text-anchor="middle" class="lbl-xs">Google Cloud Partner Interconnect (Fabric)</text>
+      <text x="1170" y="324" text-anchor="middle" class="lbl-xs">LC duplex · SFP+/QSFP28 · 802.1Q VLAN</text>
+      <text x="1170" y="344" text-anchor="middle" class="lbl-sm" font-weight="600">1–10 Gbps virtual interface</text>
+      <text x="1170" y="362" text-anchor="middle" class="lbl-xs">Power/security: provider-managed</text>
+
+      <rect class="box box-hyper fill-hyper" x="1340" y="270" width="300" height="120" rx="10"></rect>
+      <text x="1490" y="290" text-anchor="middle" class="lbl-title">IBM Cloud Pod</text>
+      <text x="1490" y="308" text-anchor="middle" class="lbl-xs">IBM Direct Link Connect via Equinix Fabric</text>
+      <text x="1490" y="324" text-anchor="middle" class="lbl-xs">LC duplex · SFP+/QSFP28 · 802.1Q VLAN</text>
+      <text x="1490" y="344" text-anchor="middle" class="lbl-sm" font-weight="600">1–10 Gbps virtual interface</text>
+      <text x="1490" y="362" text-anchor="middle" class="lbl-xs">Power/security: provider-managed</text>
+
+      <text x="850" y="412" text-anchor="middle" class="lbl-xs">Note: AWS/Azure/GCP/IBM all ride one physical Equinix Fabric port at COLO B as separate 802.1Q-tagged virtual circuits — the normal Fabric consumption model, not four separate cross-connects.</text>
+
+      <!-- ============ RACK ELEVATIONS ============ -->
+      <text x="60" y="452" class="lbl-band-title">REPRESENTATIVE RACK ELEVATIONS BY SITE TYPE</text>
+
+      <!-- Edge rack -->
+      <text x="100" y="480" class="lbl-title">Edge Pod — shelf/wall enclosure</text>
+      <rect class="rack-frame" x="100" y="492" width="330" height="330" rx="6"></rect>
+      <rect class="rack-block" x="112" y="504" width="306" height="76" rx="4"></rect>
+      <text x="265" y="536" text-anchor="middle" class="lbl-sm">Intel NUC ×3 (cluster)</text>
+      <text x="265" y="552" text-anchor="middle" class="lbl-xs">edge compute nodes</text>
+      <rect class="rack-block" x="112" y="588" width="306" height="46" rx="4"></rect>
+      <text x="265" y="615" text-anchor="middle" class="lbl-sm">2.5GbE managed switch</text>
+      <rect class="rack-block" x="112" y="642" width="306" height="46" rx="4"></rect>
+      <text x="265" y="669" text-anchor="middle" class="lbl-sm">5G/LTE failover router</text>
+      <rect class="rack-block" x="112" y="696" width="306" height="46" rx="4"></rect>
+      <text x="265" y="723" text-anchor="middle" class="lbl-sm">Small UPS (600VA)</text>
+      <rect class="rack-block" x="112" y="750" width="306" height="60" rx="4"></rect>
+      <text x="265" y="774" text-anchor="middle" class="lbl-sm">Tamper-evident enclosure</text>
+      <text x="265" y="790" text-anchor="middle" class="lbl-xs">feeds device-posture PEP</text>
+
+      <!-- Comm Closet rack -->
+      <text x="470" y="480" class="lbl-title">Comm Closet Pod — 12–24U open-frame rack</text>
+      <rect class="rack-frame" x="470" y="492" width="330" height="330" rx="6"></rect>
+      <rect class="rack-block" x="482" y="504" width="306" height="66" rx="4"></rect>
+      <text x="635" y="530" text-anchor="middle" class="lbl-sm">Nutanix NX node ×3</text>
+      <text x="635" y="546" text-anchor="middle" class="lbl-xs">AHV + CVM cluster</text>
+      <rect class="rack-block" x="482" y="578" width="306" height="38" rx="4"></rect>
+      <text x="635" y="601" text-anchor="middle" class="lbl-sm">ToR switch, 10GbE 24-port</text>
+      <rect class="rack-block" x="482" y="624" width="306" height="38" rx="4"></rect>
+      <text x="635" y="647" text-anchor="middle" class="lbl-sm">Patch panel, Cat6A 24-port</text>
+      <rect class="rack-block" x="482" y="670" width="306" height="46" rx="4"></rect>
+      <text x="635" y="693" text-anchor="middle" class="lbl-sm">WireGuard gateway HA pair</text>
+      <text x="635" y="709" text-anchor="middle" class="lbl-xs">tunnel termination + PEP</text>
+      <rect class="rack-block" x="482" y="724" width="306" height="38" rx="4"></rect>
+      <text x="635" y="747" text-anchor="middle" class="lbl-sm">UPS (1500VA)</text>
+      <rect class="rack-block" x="482" y="770" width="306" height="40" rx="4"></rect>
+      <text x="635" y="794" text-anchor="middle" class="lbl-sm">DIA demarc ×2 (primary + backup)</text>
+
+      <!-- Equinix rack -->
+      <text x="840" y="480" class="lbl-title">Equinix COLO A / B — 42U cabinet (per pod)</text>
+      <rect class="rack-frame" x="850" y="492" width="330" height="330" rx="6"></rect>
+      <rect class="power-a" x="838" y="492" width="8" height="330" rx="2"></rect>
+      <rect class="power-b" x="1184" y="492" width="8" height="330" rx="2"></rect>
+      <text x="842" y="486" text-anchor="middle" class="lbl-xs" style="fill:var(--power-a)">A</text>
+      <text x="1188" y="486" text-anchor="middle" class="lbl-xs" style="fill:var(--power-b)">B</text>
+      <rect class="rack-block" x="862" y="504" width="306" height="70" rx="4"></rect>
+      <text x="1015" y="533" text-anchor="middle" class="lbl-sm">Nutanix NX node ×4</text>
+      <text x="1015" y="549" text-anchor="middle" class="lbl-xs">colo hyperconverged cluster</text>
+      <rect class="rack-block" x="862" y="582" width="306" height="38" rx="4"></rect>
+      <text x="1015" y="605" text-anchor="middle" class="lbl-sm">ToR switch pair, 25/100GbE</text>
+      <rect class="rack-block" x="862" y="628" width="306" height="34" rx="4"></rect>
+      <text x="1015" y="649" text-anchor="middle" class="lbl-sm">Fiber patch panel, LC 24-port</text>
+      <rect class="rack-block" x="862" y="670" width="306" height="38" rx="4"></rect>
+      <text x="1015" y="693" text-anchor="middle" class="lbl-sm">Equinix Fabric port ×2</text>
+      <rect class="rack-block" x="862" y="716" width="306" height="34" rx="4"></rect>
+      <text x="1015" y="737" text-anchor="middle" class="lbl-sm">Vertical cable managers ×2</text>
+      <rect class="rack-block" x="862" y="758" width="306" height="52" rx="4"></rect>
+      <text x="1015" y="780" text-anchor="middle" class="lbl-sm">Badge + biometric cage access</text>
+      <text x="1015" y="796" text-anchor="middle" class="lbl-xs">24/7 CCTV, SOC 2 Type II facility</text>
+
+      <text x="1210" y="510" class="lbl-xs">Feed A</text>
+      <text x="1210" y="526" class="lbl-xs">and Feed B</text>
+      <text x="1210" y="542" class="lbl-xs">are separate</text>
+      <text x="1210" y="558" class="lbl-xs">utility paths;</text>
+      <text x="1210" y="574" class="lbl-xs">every node</text>
+      <text x="1210" y="590" class="lbl-xs">dual-corded</text>
+      <text x="1210" y="606" class="lbl-xs">across both.</text>
+    </svg>
+  </div>
+
+  <section style="display:grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap:16px; margin-top:20px;">
+
+    <div class="diagram-card" style="padding:18px 20px;">
+      <h2 style="font-size:14px; margin:0 0 10px;">Connector &amp; optics quick reference</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:12px; color:var(--text-secondary);">
+        <tr style="color:var(--text-primary); font-weight:600;"><td style="padding:4px 6px 4px 0;">Speed</td><td style="padding:4px 6px 4px 0;">Optics</td><td style="padding:4px 0;">Connector</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Copper, ≤10G</td><td style="padding:4px 6px 4px 0;">Integrated NIC / SFP+ (10GBASE-T)</td><td style="padding:4px 0;">RJ45</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">1G fiber</td><td style="padding:4px 6px 4px 0;">SFP (1000BASE-LX/SX)</td><td style="padding:4px 0;">LC duplex</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">10G fiber</td><td style="padding:4px 6px 4px 0;">SFP+ (10GBASE-LR/SR)</td><td style="padding:4px 0;">LC duplex</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">100G fiber</td><td style="padding:4px 6px 4px 0;">QSFP28</td><td style="padding:4px 0;">LC duplex / MPO</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Colo cross-connect</td><td style="padding:4px 6px 4px 0;">Single-mode fiber, OS2</td><td style="padding:4px 0;">LC-LC, facility-terminated</td></tr>
+      </table>
+    </div>
+
+    <div class="diagram-card" style="padding:18px 20px;">
+      <h2 style="font-size:14px; margin:0 0 10px;">Power redundancy by site type</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:12px; color:var(--text-secondary);">
+        <tr style="color:var(--text-primary); font-weight:600;"><td style="padding:4px 6px 4px 0;">Site</td><td style="padding:4px 0;">Posture</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Edge Pod</td><td style="padding:4px 0;">Single feed + small UPS; no true redundancy — accepted risk at Alpha scale</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Comm Closet Pod</td><td style="padding:4px 0;">Utility feed + building/rack UPS; add a second circuit if budget allows</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Equinix COLO A / B</td><td style="padding:4px 0;">Full A+B redundant feeds, facility UPS + generator, every node dual-corded</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Hyperscaler pods</td><td style="padding:4px 0;">Provider-managed — inherits each cloud's own regional redundancy model</td></tr>
+      </table>
+    </div>
+
+    <div class="diagram-card" style="padding:18px 20px;">
+      <h2 style="font-size:14px; margin:0 0 10px;">Physical security by site type</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:12px; color:var(--text-secondary);">
+        <tr style="color:var(--text-primary); font-weight:600;"><td style="padding:4px 6px 4px 0;">Site</td><td style="padding:4px 0;">Controls</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Edge Pod</td><td style="padding:4px 0;">Tamper-evident enclosure; TPM-based remote attestation feeds the device-posture PEP</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Comm Closet Pod</td><td style="padding:4px 0;">Keyed/badge door access, logged entry, camera</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Equinix COLO A / B</td><td style="padding:4px 0;">Facility-standard: badge + biometric, man-trap, 24/7 CCTV; cage/cabinet lock; ticketed cross-connect changes</td></tr>
+      </table>
+    </div>
+
+    <div class="diagram-card" style="padding:18px 20px;">
+      <h2 style="font-size:14px; margin:0 0 10px;">Companion files</h2>
+      <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.6; margin:0 0 8px;">This diagram is the physical-layer companion to the logical mesh design:</p>
+      <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.6; margin:0 0 4px;">• <b style="color:var(--text-primary)">Physical-Layer-Circuit-Hardware-BOM.xlsx</b> — full per-hop circuit BOM and per-site hardware BOM.</p>
+      <p style="font-size:12.5px; color:var(--text-secondary); line-height:1.6; margin:0;">• <b style="color:var(--text-primary)">Alpha-Phase-Physical-Layer-Architecture.docx</b> — narrative design doc: transport spec, rack/site layout, and real-world procurement guidance.</p>
+    </div>
+
+  </section>
+
+  <footer style="margin-top:22px; color:var(--text-muted); font-size:11.5px; line-height:1.6;">
+    Every physical circuit shown still carries a WireGuard tunnel end to end (per the logical mesh diagram) regardless of whether the underlying medium is public internet DIA or a private Equinix Fabric virtual connection — the physical medium changes latency, bandwidth, and cost; it never changes the zero-trust posture.
+  </footer>
+</div>
+</body>
+</html>
