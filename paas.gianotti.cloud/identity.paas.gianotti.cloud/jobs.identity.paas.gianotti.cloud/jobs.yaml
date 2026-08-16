@@ -1,0 +1,56 @@
+# Envsubst: IMAGE_JOBS
+# No Service and no Ingress: this workload takes no inbound traffic. Replicas
+# coordinate through a Postgres advisory lock, so scaling up adds standbys
+# rather than duplicate work.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jobs
+  namespace: jobs
+  labels: { app.kubernetes.io/name: jobs }
+spec:
+  replicas: 2
+  selector:
+    matchLabels: { app.kubernetes.io/name: jobs }
+  template:
+    metadata:
+      labels: { app.kubernetes.io/name: jobs }
+    spec:
+      imagePullSecrets: [{ name: registry-credentials }]
+      # Give the current cycle time to finish before the container is killed.
+      terminationGracePeriodSeconds: 45
+      securityContext:
+        runAsNonRoot: true
+        seccompProfile: { type: RuntimeDefault }
+      containers:
+        - name: jobs
+          image: ${IMAGE_JOBS}
+          envFrom:
+            - secretRef: { name: database }
+          env:
+            - name: INTERVAL_SECONDS
+              value: "300"
+            - name: HEARTBEAT_FILE
+              value: /tmp/worker-heartbeat
+          # A worker wedged mid-cycle stops touching the heartbeat and is replaced.
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - test $(( $(date +%s) - $(cat /tmp/worker-heartbeat 2>/dev/null || echo 0) / 1000 )) -lt 900
+            initialDelaySeconds: 60
+            periodSeconds: 60
+          resources:
+            requests: { cpu: 25m, memory: 96Mi }
+            limits: { memory: 384Mi }
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities: { drop: ["ALL"] }
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
