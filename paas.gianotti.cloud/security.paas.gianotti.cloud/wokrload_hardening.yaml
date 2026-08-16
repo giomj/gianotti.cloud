@@ -1,0 +1,145 @@
+# Workload hardening. Pod Security Admission already enforces the `restricted`
+# profile; these policies cover what PSA does not, and produce clearer messages
+# when a deployment is rejected.
+#
+# Envsubst: FAILURE_ACTION
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: require-resource-limits
+  annotations:
+    policies.kyverno.io/title: Require memory limits
+    policies.kyverno.io/category: Availability
+    policies.kyverno.io/description: >-
+      A container without a memory limit can consume the node and take its
+      neighbours with it. On a three-node cluster that is most of the platform.
+spec:
+  validationFailureAction: ${FAILURE_ACTION}
+  background: true
+  rules:
+    - name: memory-limit-required
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, linkerd, kyverno, falco]
+      validate:
+        message: "Set resources.limits.memory. Without it one container can starve the node."
+        pattern:
+          spec:
+            containers:
+              - resources:
+                  limits:
+                    memory: "?*"
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-default-service-account
+  annotations:
+    policies.kyverno.io/title: Name a service account
+    policies.kyverno.io/category: Identity
+    policies.kyverno.io/description: >-
+      Workload identity in the mesh derives from the ServiceAccount. Pods sharing
+      the default account are indistinguishable from each other, which makes
+      per-workload authorization meaningless.
+spec:
+  validationFailureAction: ${FAILURE_ACTION}
+  background: true
+  rules:
+    - name: explicit-service-account
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, linkerd, kyverno, falco, ingress-nginx, cert-manager]
+      validate:
+        message: "Set spec.serviceAccountName. Mesh identity and authorization derive from it."
+        deny:
+          conditions:
+            any:
+              - key: "{{ request.object.spec.serviceAccountName || 'default' }}"
+                operator: Equals
+                value: default
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-service-account-token-automount
+  annotations:
+    policies.kyverno.io/title: Do not mount API tokens by default
+    policies.kyverno.io/category: Least privilege
+    policies.kyverno.io/description: >-
+      Most workloads never call the Kubernetes API. Mounting a token anyway hands
+      an attacker who lands in the container a credential for the control plane.
+spec:
+  validationFailureAction: ${FAILURE_ACTION}
+  background: true
+  rules:
+    - name: no-automount
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, linkerd, kyverno, falco, ingress-nginx, cert-manager]
+      validate:
+        message: "Set automountServiceAccountToken: false unless the workload calls the Kubernetes API."
+        pattern:
+          spec:
+            automountServiceAccountToken: "false"
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-host-namespaces-and-paths
+  annotations:
+    policies.kyverno.io/title: No host access
+    policies.kyverno.io/category: Isolation
+spec:
+  validationFailureAction: ${FAILURE_ACTION}
+  background: true
+  rules:
+    - name: no-host-namespaces
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, linkerd, falco]
+      validate:
+        message: "hostNetwork, hostPID, and hostIPC break container isolation."
+        pattern:
+          spec:
+            =(hostNetwork): "false"
+            =(hostPID): "false"
+            =(hostIPC): "false"
+    - name: no-host-path
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, linkerd, falco]
+      validate:
+        message: "hostPath volumes expose the node filesystem to the container."
+        foreach:
+          - list: "request.object.spec.volumes[]"
+            deny:
+              conditions:
+                any:
+                  - key: "{{ element.keys(@)[?contains(@, 'hostPath')] | length(@) }}"
+                    operator: GreaterThan
+                    value: 0

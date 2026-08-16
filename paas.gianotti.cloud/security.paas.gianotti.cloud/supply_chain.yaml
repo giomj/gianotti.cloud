@@ -1,0 +1,64 @@
+# Supply chain controls. Nothing runs that did not come from a known registry,
+# and — once a cosign key is configured — nothing runs that this pipeline did
+# not sign.
+#
+# Envsubst: FAILURE_ACTION, ALLOWED_REGISTRIES_YAML
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: restrict-image-registries
+  annotations:
+    policies.kyverno.io/title: Known registries only
+    policies.kyverno.io/category: Supply chain
+    policies.kyverno.io/description: >-
+      Constrains where images may come from. A typo-squatted public image is one
+      of the cheapest ways into a cluster.
+spec:
+  validationFailureAction: ${FAILURE_ACTION}
+  background: true
+  rules:
+    - name: allowed-registries
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system]
+      validate:
+        message: "Image registry is not on the allowlist. Mirror it into the platform registry first."
+        pattern:
+          spec:
+            containers:
+              - image: "${ALLOWED_REGISTRIES_YAML}"
+---
+apiVersion: kyverno.io/v1
+kind: ClusterPolicy
+metadata:
+  name: disallow-mutable-image-tags
+  annotations:
+    policies.kyverno.io/title: No latest tag
+    policies.kyverno.io/category: Supply chain
+    policies.kyverno.io/description: >-
+      A mutable tag means the image that passed review is not necessarily the
+      image that runs. It also makes an incident impossible to reconstruct.
+spec:
+  validationFailureAction: ${FAILURE_ACTION}
+  background: true
+  rules:
+    - name: no-latest
+      match:
+        any:
+          - resources:
+              kinds: [Pod]
+      exclude:
+        any:
+          - resources:
+              namespaces: [kube-system, linkerd, kyverno, falco]
+      validate:
+        message: "Use an immutable tag or a digest, not :latest."
+        pattern:
+          spec:
+            containers:
+              - image: "!*:latest"

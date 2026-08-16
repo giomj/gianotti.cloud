@@ -1,0 +1,129 @@
+# Runtime detection rules tuned to this platform.
+#
+# Generic Falco rules produce noise because they do not know what normal looks
+# like here. These encode the platform's actual shape: applications are Node
+# processes that talk to Postgres and Keycloak and nothing else, containers have
+# read-only root filesystems, and nobody should ever be getting a shell in one.
+
+- macro: platform_namespaces
+  condition: >-
+    (k8s.ns.name in (api, web, jobs, identity))
+
+- macro: platform_app_containers
+  condition: >-
+    (container.id != host and platform_namespaces)
+
+- list: expected_platform_processes
+  items: [node, nginx, nginx-ingress-c, java, sh, bash, dumb-init, tini, docker-entrypoi]
+
+# --- Execution ---------------------------------------------------------------
+
+- rule: Shell spawned in platform container
+  desc: >-
+    An interactive shell inside an application container. Deployments here never
+    need one: debugging happens through logs and ephemeral debug containers.
+    This is the single highest-signal indicator of a live compromise.
+  condition: >-
+    spawned_process
+    and platform_app_containers
+    and proc.name in (bash, sh, zsh, ash, dash, csh, ksh)
+    and proc.tty != 0
+  output: >-
+    Interactive shell in platform container
+    (user=%user.name container=%container.name namespace=%k8s.ns.name
+     pod=%k8s.pod.name command=%proc.cmdline parent=%proc.pname)
+  priority: CRITICAL
+  tags: [container, shell, mitre_execution, T1059]
+
+- rule: Unexpected process in platform container
+  desc: >-
+    A binary the application images do not contain. Usually means something was
+    downloaded and run, which read-only root filesystems are supposed to prevent.
+  condition: >-
+    spawned_process
+    and platform_app_containers
+    and not proc.name in (expected_platform_processes)
+  output: >-
+    Unexpected process (process=%proc.name command=%proc.cmdline
+     container=%container.name namespace=%k8s.ns.name pod=%k8s.pod.name)
+  priority: WARNING
+  tags: [container, process, mitre_execution]
+
+# --- Credential access -------------------------------------------------------
+
+- rule: Service account token read by application
+  desc: >-
+    Reading the projected service account token. Application workloads have
+    automountServiceAccountToken disabled, so this should be impossible; if it
+    fires, an admission policy has been bypassed or an exception is too broad.
+  condition: >-
+    open_read
+    and platform_app_containers
+    and fd.name startswith /var/run/secrets/kubernetes.io/serviceaccount
+  output: >-
+    Service account token read (file=%fd.name container=%container.name
+     namespace=%k8s.ns.name pod=%k8s.pod.name command=%proc.cmdline)
+  priority: CRITICAL
+  tags: [container, credentials, mitre_credential_access, T1552]
+
+- rule: Cloud metadata endpoint contacted
+  desc: >-
+    An outbound connection to the link-local metadata address. NetworkPolicy
+    already excludes 169.254.0.0/16 from every egress rule, so this firing means
+    the network policy is not being enforced.
+  condition: >-
+    outbound
+    and platform_app_containers
+    and fd.sip = "169.254.169.254"
+  output: >-
+    Metadata endpoint contacted (container=%container.name namespace=%k8s.ns.name
+     pod=%k8s.pod.name connection=%fd.name command=%proc.cmdline)
+  priority: CRITICAL
+  tags: [container, network, mitre_credential_access, T1552.005]
+
+# --- Persistence and tampering ----------------------------------------------
+
+- rule: Write below system directory in platform container
+  desc: >-
+    Application containers run with a read-only root filesystem. A successful
+    write below a system path means that control is missing on this workload.
+  condition: >-
+    open_write
+    and platform_app_containers
+    and (fd.name startswith /bin or
+         fd.name startswith /sbin or
+         fd.name startswith /usr or
+         fd.name startswith /etc or
+         fd.name startswith /lib)
+    and not fd.name startswith /etc/nginx/conf.d
+  output: >-
+    Write below system directory (file=%fd.name container=%container.name
+     namespace=%k8s.ns.name pod=%k8s.pod.name command=%proc.cmdline)
+  priority: ERROR
+  tags: [container, filesystem, mitre_persistence]
+
+- rule: Package manager run in platform container
+  desc: Installing software at runtime. Images are built in CI, never mutated in place.
+  condition: >-
+    spawned_process
+    and platform_app_containers
+    and proc.name in (apk, apt, apt-get, dpkg, yum, dnf, rpm, npm, pip, pip3)
+  output: >-
+    Package manager executed (command=%proc.cmdline container=%container.name
+     namespace=%k8s.ns.name pod=%k8s.pod.name)
+  priority: ERROR
+  tags: [container, software_mgmt, mitre_persistence]
+
+# --- Discovery ---------------------------------------------------------------
+
+- rule: Network reconnaissance tool executed
+  desc: Scanning or probing tooling running inside the platform.
+  condition: >-
+    spawned_process
+    and platform_app_containers
+    and proc.name in (nmap, nc, ncat, netcat, socat, tcpdump, nikto, masscan, hydra)
+  output: >-
+    Reconnaissance tool executed (command=%proc.cmdline container=%container.name
+     namespace=%k8s.ns.name pod=%k8s.pod.name)
+  priority: CRITICAL
+  tags: [container, network, mitre_discovery]
