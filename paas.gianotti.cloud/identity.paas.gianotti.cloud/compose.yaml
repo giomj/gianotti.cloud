@@ -1,0 +1,146 @@
+# Local development stack. Mirrors production shape: one Postgres with a database
+# per application, Keycloak on its own database, the same bootstrap script, and
+# the same application images that ship to the cluster.
+#
+#   docker compose up --build          bring everything up
+#   docker compose down -v             tear it down including data
+#
+# Ports:  web 3001 · api 3000 · identity-admin 8081 · keycloak 8080 · postgres 5432
+
+name: platform-dev
+
+x-app-env: &app-env
+  NODE_ENV: development
+  OIDC_ISSUER: http://keycloak:8080/realms/${KEYCLOAK_REALM:-platform}
+  OIDC_ISSUER_PUBLIC: http://localhost:8080/realms/${KEYCLOAK_REALM:-platform}
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres}
+      POSTGRES_DB: defaultdb
+      APP_DB_PASSWORD: ${APP_DB_PASSWORD:-devpassword}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+      - ./dev/postgres-init.sh:/docker-entrypoint-initdb.d/10-databases.sh:ro
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d defaultdb"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:26.0.7
+    command: ["start-dev"]
+    environment:
+      KC_DB: postgres
+      KC_DB_URL: jdbc:postgresql://postgres:5432/keycloak
+      KC_DB_USERNAME: keycloak_app
+      KC_DB_PASSWORD: ${APP_DB_PASSWORD:-devpassword}
+      KC_BOOTSTRAP_ADMIN_USERNAME: ${KEYCLOAK_ADMIN:-kcadmin}
+      KC_BOOTSTRAP_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-kcadmin}
+      KC_HEALTH_ENABLED: "true"
+      KC_HTTP_ENABLED: "true"
+      # Browsers are redirected to localhost:8080, containers talk to keycloak:8080.
+      KC_HOSTNAME: http://localhost:8080
+      KC_HOSTNAME_BACKCHANNEL_DYNAMIC: "true"
+    ports:
+      - "8080:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    healthcheck:
+      # The image ships no curl, so check the port with bash's /dev/tcp.
+      test: ["CMD-SHELL", "exec 3<>/dev/tcp/127.0.0.1/8080"]
+      interval: 5s
+      timeout: 5s
+      retries: 40
+
+  # One-shot: creates the realm, the admin console service account, and the
+  # public web client. Exits 0 when the platform is ready to use.
+  keycloak-bootstrap:
+    image: quay.io/keycloak/keycloak:26.0.7
+    restart: "no"
+    entrypoint: ["/bin/bash", "/scripts/keycloak-bootstrap.sh"]
+    volumes:
+      - ./scripts/keycloak-bootstrap.sh:/scripts/keycloak-bootstrap.sh:ro
+    environment:
+      KEYCLOAK_URL: http://keycloak:8080
+      KEYCLOAK_ADMIN: ${KEYCLOAK_ADMIN:-kcadmin}
+      KEYCLOAK_ADMIN_PASSWORD: ${KEYCLOAK_ADMIN_PASSWORD:-kcadmin}
+      REALM: ${KEYCLOAK_REALM:-platform}
+      REALM_DISPLAY_NAME: ${PLATFORM_NAME:-Acme}
+      CLIENT_ID: platform-admin-ui
+      CLIENT_SECRET: ${ADMIN_CLIENT_SECRET:-dev-admin-client-secret}
+      WEB_CLIENT_ID: web
+      WEB_REDIRECT_URIS: http://localhost:3001/*
+      WEB_ORIGINS: http://localhost:3001
+      # Signups start open locally so there is something to test against.
+      REGISTRATION_ALLOWED: "true"
+    depends_on:
+      keycloak:
+        condition: service_healthy
+
+  identity-admin:
+    build:
+      context: ./admin-ui
+    environment:
+      PORT: "8080"
+      KEYCLOAK_INTERNAL_URL: http://keycloak:8080
+      KEYCLOAK_PUBLIC_URL: http://localhost:8080
+      KEYCLOAK_REALM: ${KEYCLOAK_REALM:-platform}
+      ADMIN_CLIENT_ID: platform-admin-ui
+      ADMIN_CLIENT_SECRET: ${ADMIN_CLIENT_SECRET:-dev-admin-client-secret}
+      PLATFORM_NAME: ${PLATFORM_NAME:-Acme}
+    ports:
+      - "8081:8080"
+    depends_on:
+      keycloak-bootstrap:
+        condition: service_completed_successfully
+
+  api:
+    build:
+      context: ./apps/api
+    environment:
+      <<: *app-env
+      PORT: "8080"
+      DATABASE_URL: postgresql://api_app:${APP_DB_PASSWORD:-devpassword}@postgres:5432/api
+      CORS_ORIGIN: http://localhost:3001
+    ports:
+      - "3000:8080"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      keycloak-bootstrap:
+        condition: service_completed_successfully
+
+  jobs:
+    build:
+      context: ./apps/jobs
+    environment:
+      <<: *app-env
+      DATABASE_URL: postgresql://jobs_app:${APP_DB_PASSWORD:-devpassword}@postgres:5432/jobs
+      INTERVAL_SECONDS: "15"
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  web:
+    build:
+      context: ./apps/web
+    environment:
+      OIDC_AUTHORITY: http://localhost:8080/realms/${KEYCLOAK_REALM:-platform}
+      OIDC_CLIENT_ID: web
+      API_BASE_URL: http://localhost:3000
+      PLATFORM_NAME: ${PLATFORM_NAME:-Acme}
+    ports:
+      - "3001:8080"
+    depends_on:
+      keycloak-bootstrap:
+        condition: service_completed_successfully
+
+volumes:
+  postgres-data:
