@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Path to Rack Power · MG Program Roadmap</title>
+<style>
+  .viz-root {
+    color-scheme: light;
+    --surface-1: #fcfcfb;
+    --page: #f9f9f7;
+    --ink-1: #0b0b0b;
+    --ink-2: #52514e;
+    --muted: #898781;
+    --grid: #e1e0d9;
+    --baseline: #c3c2b7;
+    --border: rgba(11,11,11,0.10);
+    --s1: #2a78d6;
+    --s2: #eb6834;
+    --s3: #1baf7a;
+    --s7: #4a3aa7;
+    --status-good: #0ca30c;
+    --status-warning: #fab219;
+    --status-serious: #ec835a;
+    --status-critical: #d03b3b;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) .viz-root {
+      color-scheme: dark;
+      --surface-1: #1a1a19; --page: #0d0d0d;
+      --ink-1: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s7: #9085e9;
+    }
+  }
+  :root[data-theme="dark"] .viz-root {
+    color-scheme: dark;
+    --surface-1: #1a1a19; --page: #0d0d0d;
+    --ink-1: #ffffff; --ink-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --baseline: #383835; --border: rgba(255,255,255,0.10);
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70; --s7: #9085e9;
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: system-ui, -apple-system, "Segoe UI", sans-serif; }
+  .viz-root { background: var(--page); color: var(--ink-1); min-height: 100vh; padding: 32px 24px 48px; }
+  .wrap { max-width: 980px; margin: 0 auto; }
+  h1 { font-size: 24px; font-weight: 700; letter-spacing: -0.01em; }
+  .sub { color: var(--ink-2); font-size: 14px; margin-top: 6px; max-width: 78ch; line-height: 1.5; }
+
+  .firewall { margin-top: 18px; border: 1.5px solid var(--status-critical); border-radius: 10px;
+              background: var(--surface-1); padding: 14px 18px; font-size: 13px; line-height: 1.55; }
+  .firewall .fh { font-weight: 700; color: var(--status-critical); font-size: 12px; text-transform: uppercase;
+                  letter-spacing: 0.06em; margin-bottom: 4px; }
+  .firewall .fh::before { content: "⛔ "; }
+  .firewall b { color: var(--ink-1); }
+  .firewall .fs { color: var(--ink-2); }
+
+  .timeline { margin-top: 26px; position: relative; padding-left: 34px; }
+  .timeline::before { content: ""; position: absolute; left: 11px; top: 10px; bottom: 10px; width: 2px; background: var(--baseline); }
+  .stage { position: relative; margin-bottom: 18px; }
+  .stage .dot { position: absolute; left: -34px; top: 14px; width: 22px; height: 22px; border-radius: 50%;
+                border: 2px solid var(--page); display: flex; align-items: center; justify-content: center;
+                font-size: 11px; font-weight: 700; color: #fff; }
+  .stage .card { background: var(--surface-1); border: 1px solid var(--border); border-radius: 10px; padding: 16px 20px; }
+  .stage h3 { font-size: 15px; font-weight: 700; display: flex; align-items: baseline; gap: 10px; flex-wrap: wrap; }
+  .badge { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em;
+           padding: 2.5px 9px; border-radius: 999px; border: 1px solid var(--border); color: var(--ink-2); background: var(--page); }
+  .badge.now      { border-color: var(--s1);  color: var(--s1); }
+  .badge.gate     { border-color: var(--status-serious); color: var(--status-serious); }
+  .badge.future   { border-color: var(--muted); }
+  .badge.honest   { border-color: var(--status-good); color: var(--status-good); }
+  .stage p { font-size: 13px; color: var(--ink-2); line-height: 1.55; margin-top: 7px; max-width: 84ch; }
+  .stage p b { color: var(--ink-1); }
+  .kv { display: flex; gap: 22px; margin-top: 10px; flex-wrap: wrap; }
+  .kv .it .k { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+  .kv .it .v { font-size: 16px; font-weight: 700; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .kv .it .v small { font-size: 12px; font-weight: 600; color: var(--ink-2); }
+
+  .math { margin-top: 8px; border-top: 1px dashed var(--grid); padding-top: 10px; }
+  .math .row { display: grid; grid-template-columns: 250px 1fr; gap: 10px; font-size: 13px; padding: 4px 0; }
+  .math .row .l { color: var(--muted); }
+  .math .row .r { font-variant-numeric: tabular-nums; color: var(--ink-1); }
+  .math .row.hl .r { font-weight: 700; }
+
+  .foot { margin-top: 24px; font-size: 11.5px; color: var(--muted); line-height: 1.6; max-width: 96ch; }
+  .foot b { color: var(--ink-2); }
+</style>
+</head>
+<body>
+<div class="viz-root">
+<div class="wrap">
+
+<h1>Path to Rack Power · MG Program Roadmap</h1>
+<div class="sub">There is no upgrade from the MG-C1 hand-crank charger to a server rack — but there is a sequenced program path. It runs through MG-2's Pseudo Direct Drive, a real wind or water resource, and the program's own validation gates. Every step below respects the doctrine: the gear is a transmission; P<sub>out</sub> ≤ P<sub>in</sub> always.</div>
+
+<div class="firewall">
+  <div class="fh">CBJG Customs venture firewall — applies to every stage on this page</div>
+  No MG-1, MG-2, MG-3, or MG-C1 data (raw, plotted, or narrated) may be attached to CBJG Customs venture materials, investor communications, or public campaigns until <b>(a)</b> an independent calorimetry report of a ≥1&nbsp;kW-class hardware iteration is signed by an outside lab, and <b>(b)</b> securities counsel opines on the venture materials. <span class="fs">Enforcement: Historian/Philosopher + Emperor seats. "This powers a server rack" is exactly the class of claim this firewall exists to gate.</span>
+</div>
+
+<div class="timeline">
+
+  <div class="stage">
+    <div class="dot" style="background: var(--s1)">0</div>
+    <div class="card">
+      <h3>MG-C1 bench charger — where the program stands <span class="badge now">Today</span></h3>
+      <p>Hand-crank → MG-1 (4.5:1 step-up) → hub-motor PMSG → rectifier → buck-boost → LiFePO₄ → USB-PD. Designed and costed; Gates 0–4 pending. The gear's pull-out torque, not the operator, caps input at ~23&nbsp;W.</p>
+      <div class="kv">
+        <div class="it"><div class="k">Delivered</div><div class="v">12.0 <small>W</small></div></div>
+        <div class="it"><div class="k">Chain efficiency</div><div class="v">53.2<small>%</small></div></div>
+        <div class="it"><div class="k">Active volume</div><div class="v">0.15 <small>L</small></div></div>
+        <div class="it"><div class="k">Build cost (Tier 1)</div><div class="v">~$1,086</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="dot" style="background: var(--status-good)">1</div>
+    <div class="card">
+      <h3>The honest near-term demo: one edge node, not a rack <span class="badge honest">Doctrine-safe</span></h3>
+      <p>MG-C1 genuinely can trickle a battery bank that carries <b>one Pi-class edge node (2–10&nbsp;W)</b> continuously — a working, measurable, falsifiable story. A NUC-class node (15–40&nbsp;W) already sits at or above the gear's hard ceiling. This is the largest "server" claim the bench hardware supports.</p>
+      <div class="kv">
+        <div class="it"><div class="k">Load it carries</div><div class="v">2–10 <small>W</small></div></div>
+        <div class="it"><div class="k">Margin at 12 W</div><div class="v">1.2–6×</div></div>
+        <div class="it"><div class="k">New hardware needed</div><div class="v">None</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="dot" style="background: var(--status-serious)">G</div>
+    <div class="card">
+      <h3>Prerequisite: MG-1 Gates 1–3 close <span class="badge gate">Blocking</span></h3>
+      <p>Council ruling: MG-2 does not start until MG-1's verification gates close — including the Council Review's blocking remedials (aluminium modulator plate, thrust bearings, thermal model, corrected modulator-frequency formula, dead-weight calibration before Gate&nbsp;1; uncertainty budget, FEA ripple spectrum, measured PMSG map, DoE structure before Gate&nbsp;3). <b>Gate&nbsp;4's polarity-swap falsification test</b> (expected ~33% torque collapse, ~57.7σ detectable) stands as the permanent over-unity kill-switch.</p>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="dot" style="background: var(--s3)">2</div>
+    <div class="card">
+      <h3>MG-2 — Pseudo Direct Drive: merge gear and generator <span class="badge future">Next machine</span></h3>
+      <p>Bond the low-speed magnet array into a stator bore and wind three phases around it: the gear's high-speed rotor becomes the generator's rotor. One housing, no mechanical teeth, and the pull-out slip becomes a built-in torque fuse. Torque density jumps from MG-1's 12–20&nbsp;N·m/L to a validated <b>60–90&nbsp;N·m/L</b> (Magnomatics-class hardware: 500&nbsp;kW wind PDD demonstrated at ORE Catapult; 4,000&nbsp;N·m bus wheel motor).</p>
+      <div class="kv">
+        <div class="it"><div class="k">Torque density</div><div class="v">60–90 <small>N·m/L</small></div></div>
+        <div class="it"><div class="k">vs MG-1</div><div class="v">~4–6×</div></div>
+        <div class="it"><div class="k">Commercial precedent</div><div class="v">kW → MW</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="dot" style="background: var(--s3)">3</div>
+    <div class="card">
+      <h3>MG-4 — demonstrator on a real resource <span class="badge future">Buildable class</span></h3>
+      <p>Replace the human arm. The applications study rates <b>micro-hydro as the best first target</b> (very low RPM, high torque, wet environment where a sealed magnetic air gap shines) and small/distributed wind (1–20&nbsp;kW) as buildable. An uncontrolled natural input is also the honest test of the torque fuse. Human cranking tops out near 54–68&nbsp;W sustained regardless of gear size — no rack path exists through a crank.</p>
+      <div class="kv">
+        <div class="it"><div class="k">Resource class</div><div class="v">1–20 <small>kW</small></div></div>
+        <div class="it"><div class="k">Best first target</div><div class="v">Micro-hydro</div></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="stage">
+    <div class="dot" style="background: var(--s7)">4</div>
+    <div class="card">
+      <h3>Rack-class system — first-order sizing <span class="badge future">Speculative — nothing at this scale built or measured</span></h3>
+      <p>To carry a modest <b>1.5&nbsp;kW edge rack</b> continuously from a low-speed resource through an MG-2-class PDD, battery bank, inverter, UPS and PDU:</p>
+      <div class="math">
+        <div class="row"><div class="l">Rack load, continuous</div><div class="r">1,500 W</div></div>
+        <div class="row"><div class="l">Chain efficiency (PDD, matched speed)</div><div class="r">~85% → 1,765 W mechanical required</div></div>
+        <div class="row"><div class="l">Resource shaft speed (hydro/wind)</div><div class="r">~60 rpm = 6.28 rad/s</div></div>
+        <div class="row hl"><div class="l">Shaft torque required</div><div class="r">≈ 281 N·m</div></div>
+        <div class="row hl"><div class="l">PDD active volume at 60–90 N·m/L</div><div class="r">≈ 3.1 – 4.7 L (≈ 21–31× MG-1)</div></div>
+        <div class="row"><div class="l">A 5 kW colo-class rack</div><div class="r">≈ 3.3× the above — small commercial wind/hydro generator territory</div></div>
+      </div>
+      <p style="margin-top:10px">This is a different machine, a different budget, and a multi-year build on a real site with water rights or wind resource — not a modification of anything on the bench. It is also precisely the ≥1&nbsp;kW-class hardware whose <b>independent calorimetry report</b> the firewall demands before any public claim.</p>
+    </div>
+  </div>
+
+</div>
+
+<div class="foot">
+  <b>Sources:</b> MG-C1 BOM rev 0.1 (energy budget, tiers, scaling table) · MG-2 applications &amp; generation study (PDD densities, Magnomatics/ORE Catapult demonstrations, application matrix) · MG-1 Grand Council Review (gate blockers, ratification conditions, firewall covenant) · Jansen &amp; Slob 2003 (sustained crank power). Sizing at stage 4 is illustrative arithmetic from published PDD torque densities — it carries no measurement behind it and is presented for planning scale only. CBJG LLC · Benchtop Motor Program.
+</div>
+
+</div>
+</div>
+</body>
+</html>
