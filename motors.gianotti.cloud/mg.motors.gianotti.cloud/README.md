@@ -1,0 +1,25 @@
+Pulled the two files that actually have the power numbers — MGC1_bill_of_materials.xlsx's "Energy budget" tab (a live model, not narrative) and the Roll-up/README tabs. That, plus what was already read from MG-2, MG-5, and the Grand Council Review, is enough to answer honestly.
+
+Short answer: as built, it can't — not by a little, by two to three orders of magnitude. Here's the actual math, and where the real path lies.
+
+The MG-C1 charger's own energy budget model gives the full chain: a 90 rpm hand crank at 2.4 N·m puts 22.6 W of mechanical power into the MG-1 gear. That's already the ceiling — not the operator (sustained one-hand cranking is documented at 54±14 W, so the gear is the bottleneck, not the human). After the gear (90%), the hub motor run as a low-speed generator (75%, the worst stage — copper-loss dominated at low RPM), the rectifier bridge (97%), the buck-boost charge controller (93%), the LiFePO4 buffer round-trip (94%), and the USB-PD stage (93%), you land at 12.0 W delivered at the USB-C port. Overall chain efficiency: 53.2%. Push the gear to its high pull-out limit (3 N·m at the as-built 0.15 L active volume) and the ceiling only moves to ~15 W out. The BOM's own cranking-hours table makes the scale concrete: charging a 50 Wh laptop battery takes 4.15 hours of continuous hand-cranking.
+
+A server rack is a different universe of power draw:
+
+	Typical continuous draw
+MG-C1 charger, as built	~12 W
+MG-C1 charger, at gear's pull-out ceiling	~15 W
+Single Pi/ESP32-class edge node	2–10 W
+Single 1U server	300–750 W
+Modest edge/enterprise rack (8–12 servers)	1–3 kW
+Colo rack (20–40 servers)	5–15 kW
+
+So the charger, at its absolute best, could keep pace with roughly one low-power edge node — not a rack. Their own scaling table (torque scales with active volume at 12–20 N·m/L) says it plainly: "Want 50 W at the port? That needs roughly a 0.4–0.5 L active volume — a physically larger gear, not a better winding." And even 50 W is still ~1/30th of a small rack. Scaling the crank charger up to rack-class power isn't a BOM change, it's a fundamentally different machine — and human cranking hits its own ceiling long before the gear does, since sustained one-hand output tops out around 54–68 W regardless of how big you build the gear.
+
+The real path already exists in the program — it's just not this one. MG-2 (Pseudo Direct Drive: bond the low-speed magnet array into a wound stator, merge gear and generator into one machine) hits 60–90 N·m/L torque density instead of MG-1's 12–20, and the applications doc explicitly flags small/distributed wind (1–20 kW) as "Buildable" and micro-hydro as "Buildable — best first target," with commercial PDD units validated by Magnomatics from kW into the MW range. That's the honest route to rack-class power: replace the human crank with a wind or water source, replace the hub-motor-as-generator with a purpose-built PDD stator, and feed a proper battery bank + inverter + UPS + PDU into the rack — not an upgrade to MG-C1, but a distinct build.
+
+Rough, first-order sizing on that path (clearly speculative — nothing at this scale has been built or measured): to deliver ~1.5 kW continuous at the rack, assuming a more favorable ~85% conversion chain (matched-speed PDD avoids the crank chain's low-RPM copper-loss penalty), you'd need roughly 1.8 kW mechanical input. At a plausible small-hydro/wind shaft speed of ~60 rpm (6.28 rad/s), that's about 287 N·m of torque, which at PDD's 60–90 N·m/L density implies an active volume around 3–4 L — call it 25× the bench MG-1's volume. A 5 kW rack would need roughly 3× that torque again, pushing into the size range of small commercial wind/hydro generators, well beyond a benchtop or single-lab build.
+
+Two things are worth being direct about. First, MG-2 is explicitly not started until MG-1's Gates 1–3 close — this is future work, not present capability. Second, the program's own governance already anticipated exactly this kind of claim: the CBJG Customs venture firewall requires an independent ≥1 kW-class calorimetry report from an outside lab, plus a securities counsel opinion, before any MG-1/MG-2/MG-3/MG-C1 data can touch venture, investor, or public materials. "This powers a server rack" is precisely the class of claim that gate exists to stop from going out ungrounded — so treating this as a real goal means it runs through that validation step, not around it.
+
+What's realistically demonstrable near-term without overclaiming: the crank charger genuinely can trickle a battery bank that then runs one low-power edge node (Pi-class, a sensor node, a small radio) for a stretch of hours — that's an honest, working story consistent with the doctrine (P_out ≤ P_in, Gate 4 falsification-proof) and the actual numbers. Powering an actual server rack is a separate, multi-year program built on MG-2/MG-4 and a real wind or water resource, not a modification of what's on the bench today.
