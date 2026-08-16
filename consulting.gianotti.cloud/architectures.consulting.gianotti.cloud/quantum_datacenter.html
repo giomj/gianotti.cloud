@@ -1,0 +1,416 @@
+
+
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Quantum Datacenter — Reference Network Architecture</title>
+<style>
+  :root{
+    color-scheme: light;
+    --surface-1:      #fcfcfb;
+    --surface-2:      #f9f9f7;
+    --text-primary:   #0b0b0b;
+    --text-secondary: #52514e;
+    --text-muted:     #898781;
+    --hairline:       #e1e0d9;
+    --border-ring:    rgba(11,11,11,0.10);
+
+    --zone-eth:        #2a78d6; /* blue    - Ethernet / Nutanix */
+    --zone-ib:         #eb6834; /* orange  - InfiniBand / VAST+ML */
+    --zone-quantum:    #4a3aa7; /* violet  - Quantum core */
+    --zone-edge:       #1baf7a; /* aqua    - Border / zero-trust edge */
+    --zone-flow:       #e34948; /* red     - primary data flow */
+    --zone-neutral:    #52514e;
+
+    --zone-eth-fill:      rgba(42,120,214,0.07);
+    --zone-ib-fill:       rgba(235,104,52,0.07);
+    --zone-quantum-fill:  rgba(74,58,167,0.08);
+    --zone-edge-fill:     rgba(27,175,122,0.09);
+    --zone-neutral-fill:  rgba(82,81,78,0.05);
+
+    --status-good: #0ca30c;
+  }
+  @media (prefers-color-scheme: dark){
+    :root:where(:not([data-theme="light"])){
+      color-scheme: dark;
+      --surface-1:      #1a1a19;
+      --surface-2:      #0d0d0d;
+      --text-primary:   #ffffff;
+      --text-secondary: #c3c2b7;
+      --text-muted:     #898781;
+      --hairline:       #2c2c2a;
+      --border-ring:    rgba(255,255,255,0.10);
+
+      --zone-eth:        #3987e5;
+      --zone-ib:         #d95926;
+      --zone-quantum:    #9085e9;
+      --zone-edge:       #199e70;
+      --zone-flow:       #e66767;
+
+      --zone-eth-fill:      rgba(57,135,229,0.14);
+      --zone-ib-fill:       rgba(217,89,38,0.14);
+      --zone-quantum-fill:  rgba(144,133,233,0.16);
+      --zone-edge-fill:     rgba(25,158,112,0.16);
+      --zone-neutral-fill:  rgba(195,194,183,0.08);
+
+      --status-good: #0ca30c;
+    }
+  }
+  :root[data-theme="dark"]{
+    color-scheme: dark;
+    --surface-1:      #1a1a19;
+    --surface-2:      #0d0d0d;
+    --text-primary:   #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted:     #898781;
+    --hairline:       #2c2c2a;
+    --border-ring:    rgba(255,255,255,0.10);
+    --zone-eth:        #3987e5;
+    --zone-ib:         #d95926;
+    --zone-quantum:    #9085e9;
+    --zone-edge:       #199e70;
+    --zone-flow:       #e66767;
+    --zone-eth-fill:      rgba(57,135,229,0.14);
+    --zone-ib-fill:       rgba(217,89,38,0.14);
+    --zone-quantum-fill:  rgba(144,133,233,0.16);
+    --zone-edge-fill:     rgba(25,158,112,0.16);
+    --zone-neutral-fill:  rgba(195,194,183,0.08);
+  }
+
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: var(--surface-2);
+    color: var(--text-primary);
+    padding: 28px 20px 60px;
+  }
+  .wrap{ max-width: 1760px; margin: 0 auto; }
+  header{ margin-bottom: 18px; display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap;}
+  h1{ font-size: 22px; margin: 0 0 6px; letter-spacing:-0.01em; }
+  .subtitle{ color: var(--text-secondary); font-size: 14px; max-width: 900px; line-height:1.5; margin:0; }
+  .theme-toggle{
+    border:1px solid var(--border-ring); background:var(--surface-1); color:var(--text-secondary);
+    border-radius:8px; padding:6px 12px; font-size:12px; cursor:pointer;
+  }
+
+  .diagram-card{
+    background: var(--surface-1);
+    border: 1px solid var(--border-ring);
+    border-radius: 16px;
+    padding: 8px;
+    overflow-x: auto;
+  }
+  svg text{ font-family: system-ui, -apple-system, "Segoe UI", sans-serif; fill: var(--text-primary); }
+  .lbl-sm{ font-size: 11px; }
+  .lbl-xs{ font-size: 9.5px; fill: var(--text-secondary); }
+  .lbl-title{ font-size: 12.5px; font-weight: 600; }
+  .lbl-band-title{ font-size: 12px; font-weight:600; fill: var(--text-secondary); letter-spacing:0.02em; }
+  .box{ fill: var(--surface-1); stroke: var(--border-ring); stroke-width:1.25; }
+  .box-eth{ stroke: var(--zone-eth); }
+  .box-ib{ stroke: var(--zone-ib); }
+  .box-quantum{ stroke: var(--zone-quantum); stroke-width:1.75; }
+  .box-edge{ stroke: var(--zone-edge); }
+  .zone-eth-bg{ fill: var(--zone-eth-fill); stroke: var(--zone-eth); stroke-width:1.5; }
+  .zone-ib-bg{ fill: var(--zone-ib-fill); stroke: var(--zone-ib); stroke-width:1.5; }
+  .zone-quantum-bg{ fill: var(--zone-quantum-fill); stroke: var(--zone-quantum); stroke-width:2.25; }
+  .zone-edge-bg{ fill: var(--zone-edge-fill); stroke: var(--zone-edge); stroke-width:1.5; }
+  .zone-neutral-bg{ fill: var(--zone-neutral-fill); stroke: var(--hairline); stroke-width:1.25; }
+  .cloud-bg{ fill: var(--zone-neutral-fill); stroke: var(--text-muted); stroke-width:1.25; }
+
+  .link{ stroke: var(--text-muted); stroke-width:1.5; fill:none; }
+  .link-dash{ stroke: var(--text-muted); stroke-width:1.5; fill:none; stroke-dasharray:4 4; }
+  .flow{ stroke: var(--zone-flow); stroke-width:3; fill:none; stroke-dasharray:1 7; stroke-linecap:round; stroke-linejoin:round; }
+  .flow-badge-bg{ fill: var(--zone-flow); }
+  .flow-badge-txt{ fill:#ffffff; font-size:12px; font-weight:700; }
+  .pep{ fill: var(--surface-1); stroke: var(--status-good); stroke-width:1.25; }
+  .pep-txt{ font-size:8.5px; font-weight:700; fill: var(--status-good); }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <h1>Quantum Datacenter — Reference-Pod Network Architecture</h1>
+      <p class="subtitle">Google Jupiter–style Clos topology · dual fabric (InfiniBand data lake + Ethernet web front end) · IPv6-only underlay · iBGP core / eBGP edge · zero-trust (NIST&nbsp;SP&nbsp;800-207) enforcement throughout. One representative pod shown — the block repeats to scale.</p>
+    </div>
+    <button class="theme-toggle" onclick="const r=document.documentElement; r.setAttribute('data-theme', r.getAttribute('data-theme')==='dark'?'light':'dark');">Toggle theme</button>
+  </header>
+
+  <div class="diagram-card">
+    <svg viewBox="0 0 1700 1060" width="1700" height="1060" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <marker id="arrowGray" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" fill="var(--text-muted)"></path>
+        </marker>
+        <marker id="arrowFlow" markerWidth="9" markerHeight="9" refX="6" refY="3" orient="auto">
+          <path d="M0,0 L6,3 L0,6 Z" fill="var(--zone-flow)"></path>
+        </marker>
+      </defs>
+
+      <!-- External Internet / Partner AS -->
+      <rect class="cloud-bg" x="520" y="18" width="660" height="58" rx="29"></rect>
+      <text x="850" y="42" text-anchor="middle" class="lbl-title">External Internet / Partner Autonomous Systems</text>
+      <text x="850" y="60" text-anchor="middle" class="lbl-xs">Public IPv6 GUA · results &amp; webapps consumed here</text>
+
+      <!-- connectors: cloud -> border -->
+      <path class="link" d="M690,76 L365,150" marker-end="url(#arrowGray)"></path>
+      <path class="link" d="M1010,76 L1335,150" marker-end="url(#arrowGray)"></path>
+
+      <!-- Border / Edge band -->
+      <rect class="zone-edge-bg" x="60" y="118" width="1580" height="112" rx="14"></rect>
+      <text x="80" y="136" class="lbl-band-title">BORDER / EDGE POD — ZERO-TRUST PERIMETER</text>
+
+      <rect class="box box-edge" x="80" y="152" width="490" height="66" rx="8"></rect>
+      <text x="325" y="176" text-anchor="middle" class="lbl-sm" font-weight="600">Border Router A</text>
+      <text x="325" y="192" text-anchor="middle" class="lbl-xs">eBGP → AS 65551 (upstream transit)</text>
+      <text x="325" y="205" text-anchor="middle" class="lbl-xs">multi-hop-off · TCP-AO · max-prefix</text>
+      <rect class="pep" x="86" y="158" width="34" height="14" rx="3"></rect>
+      <text x="103" y="168" text-anchor="middle" class="pep-txt">PEP</text>
+
+      <rect class="box box-edge" x="605" y="152" width="490" height="66" rx="8"></rect>
+      <text x="850" y="176" text-anchor="middle" class="lbl-sm" font-weight="600">Border Router B</text>
+      <text x="850" y="192" text-anchor="middle" class="lbl-xs">eBGP → AS 65552 (partner / peering)</text>
+      <text x="850" y="205" text-anchor="middle" class="lbl-xs">route filters + BGP flowspec</text>
+      <rect class="pep" x="611" y="158" width="34" height="14" rx="3"></rect>
+      <text x="628" y="168" text-anchor="middle" class="pep-txt">PEP</text>
+
+      <rect class="box box-edge" x="1130" y="152" width="490" height="66" rx="8"></rect>
+      <text x="1375" y="176" text-anchor="middle" class="lbl-sm" font-weight="600">Perimeter WAF / IPS / DDoS Scrub</text>
+      <text x="1375" y="192" text-anchor="middle" class="lbl-xs">policy enforcement point (PEP) for all N/S traffic</text>
+      <text x="1375" y="205" text-anchor="middle" class="lbl-xs">continuous inspection · mTLS termination</text>
+      <rect class="pep" x="1136" y="158" width="34" height="14" rx="3"></rect>
+      <text x="1153" y="168" text-anchor="middle" class="pep-txt">PEP</text>
+
+      <path class="link" d="M850,218 L850,258" marker-end="url(#arrowGray)"></path>
+      <text x="860" y="245" class="lbl-xs">eBGP routes redistributed into iBGP core (filtered)</text>
+
+      <!-- iBGP core RR band -->
+      <rect class="zone-neutral-bg" x="60" y="258" width="1580" height="70" rx="12"></rect>
+      <text x="80" y="275" class="lbl-band-title">iBGP ROUTE-REFLECTOR CORE — INTERNAL AS 4200000001 (32-bit private ASN)</text>
+      <rect class="box" x="200" y="288" width="260" height="30" rx="6"></rect>
+      <text x="330" y="307" text-anchor="middle" class="lbl-xs">RR-A cluster · serves Ethernet fabric + edge</text>
+      <rect class="box" x="1240" y="288" width="260" height="30" rx="6"></rect>
+      <text x="1370" y="307" text-anchor="middle" class="lbl-xs">RR-B cluster · serves InfiniBand fabric + quantum core</text>
+      <path class="link-dash" d="M460,303 L1240,303"></path>
+      <text x="850" y="298" text-anchor="middle" class="lbl-xs">RR↔RR iBGP</text>
+
+      <path class="link" d="M330,318 L355,398" marker-end="url(#arrowGray)"></path>
+      <path class="link" d="M1370,318 L1345,398" marker-end="url(#arrowGray)"></path>
+      <path class="link" d="M850,328 L850,398" marker-end="url(#arrowGray)"></path>
+
+      <!-- Zone backgrounds -->
+      <rect class="zone-eth-bg" x="60" y="358" width="600" height="542" rx="16"></rect>
+      <text x="80" y="378" class="lbl-band-title" style="fill:var(--zone-eth)">ETHERNET CLOS FABRIC — NUTANIX WEB FRONT END</text>
+
+      <rect class="zone-quantum-bg" x="686" y="358" width="328" height="542" rx="16"></rect>
+      <text x="850" y="378" text-anchor="middle" class="lbl-band-title" style="fill:var(--zone-quantum)">QUANTUM CORE POD — HEART OF THE DATACENTER</text>
+
+      <rect class="zone-ib-bg" x="1040" y="358" width="600" height="542" rx="16"></rect>
+      <text x="1060" y="378" class="lbl-band-title" style="fill:var(--zone-ib)">INFINIBAND CLOS FABRIC — VAST DATA LAKE + ML/AI</text>
+
+      <!-- Ethernet fabric internals -->
+      <rect class="box box-eth" x="100" y="398" width="510" height="58" rx="8"></rect>
+      <text x="355" y="422" text-anchor="middle" class="lbl-sm" font-weight="600">Ethernet Spine Tier ×4</text>
+      <text x="355" y="438" text-anchor="middle" class="lbl-xs">400GbE · ECMP · iBGP RR-clients</text>
+
+      <rect class="box box-eth" x="100" y="478" width="510" height="56" rx="8"></rect>
+      <text x="355" y="500" text-anchor="middle" class="lbl-sm" font-weight="600">Ethernet Leaf / ToR Tier ×8</text>
+      <text x="355" y="516" text-anchor="middle" class="lbl-xs">one pair per rack · IPv6 /127 P2P links</text>
+
+      <path class="link" d="M355,456 L355,478" marker-end="url(#arrowGray)"></path>
+      <path class="link" d="M178,534 L178,568" marker-end="url(#arrowGray)"></path>
+      <path class="link" d="M355,534 L355,568" marker-end="url(#arrowGray)"></path>
+      <path class="link" d="M532,534 L532,568" marker-end="url(#arrowGray)"></path>
+
+      <rect class="box box-eth" x="100" y="568" width="157" height="300" rx="8"></rect>
+      <text x="178" y="590" text-anchor="middle" class="lbl-sm" font-weight="600">Nutanix Rack A</text>
+      <text x="178" y="606" text-anchor="middle" class="lbl-xs">AHV + CVM nodes</text>
+      <text x="178" y="620" text-anchor="middle" class="lbl-xs">AOS distributed storage</text>
+      <text x="178" y="634" text-anchor="middle" class="lbl-xs">(results landing zone)</text>
+      <rect class="pep" x="120" y="648" width="34" height="14" rx="3"></rect>
+      <text x="137" y="658" text-anchor="middle" class="pep-txt">PEP</text>
+      <text x="178" y="672" text-anchor="middle" class="lbl-xs">Nutanix Flow microseg.</text>
+
+      <rect class="box box-eth" x="277" y="568" width="157" height="300" rx="8"></rect>
+      <text x="355" y="590" text-anchor="middle" class="lbl-sm" font-weight="600">Nutanix Rack B</text>
+      <text x="355" y="606" text-anchor="middle" class="lbl-xs">AHV + CVM nodes</text>
+      <text x="355" y="620" text-anchor="middle" class="lbl-xs">ML-serving / inference</text>
+      <text x="355" y="634" text-anchor="middle" class="lbl-xs">containers</text>
+      <rect class="pep" x="297" y="648" width="34" height="14" rx="3"></rect>
+      <text x="314" y="658" text-anchor="middle" class="pep-txt">PEP</text>
+      <text x="355" y="672" text-anchor="middle" class="lbl-xs">identity-aware proxy</text>
+
+      <rect class="box box-eth" x="454" y="568" width="157" height="300" rx="8"></rect>
+      <text x="532" y="590" text-anchor="middle" class="lbl-sm" font-weight="600">Nutanix Rack C</text>
+      <text x="532" y="606" text-anchor="middle" class="lbl-xs">AHV + CVM nodes</text>
+      <text x="532" y="620" text-anchor="middle" class="lbl-xs">K8s on AHV — public</text>
+      <text x="532" y="634" text-anchor="middle" class="lbl-xs">webapps / APIs</text>
+      <rect class="pep" x="474" y="648" width="34" height="14" rx="3"></rect>
+      <text x="491" y="658" text-anchor="middle" class="pep-txt">PEP</text>
+      <text x="532" y="672" text-anchor="middle" class="lbl-xs">WAF + mTLS ingress</text>
+
+      <!-- InfiniBand fabric internals -->
+      <rect class="box box-ib" x="1090" y="398" width="510" height="58" rx="8"></rect>
+      <text x="1345" y="422" text-anchor="middle" class="lbl-sm" font-weight="600">InfiniBand Spine Tier ×4</text>
+      <text x="1345" y="438" text-anchor="middle" class="lbl-xs">NDR 400G · IPv6 via IPoIB · RR-clients</text>
+
+      <rect class="box box-ib" x="1090" y="478" width="510" height="56" rx="8"></rect>
+      <text x="1345" y="500" text-anchor="middle" class="lbl-sm" font-weight="600">InfiniBand Leaf Tier ×8</text>
+      <text x="1345" y="516" text-anchor="middle" class="lbl-xs">HCA per node · non-blocking fat-tree</text>
+
+      <path class="link" d="M1345,456 L1345,478" marker-end="url(#arrowGray)"></path>
+      <path class="link" d="M1168,534 L1168,568" marker-end="url(#arrowGray)"></path>
+      <path class="link" d="M1345,534 L1345,568" marker-end="url(#arrowGray)"></path>
+      <path class="link" d="M1522,534 L1522,568" marker-end="url(#arrowGray)"></path>
+
+      <rect class="box box-ib" x="1090" y="568" width="157" height="300" rx="8"></rect>
+      <text x="1168" y="590" text-anchor="middle" class="lbl-sm" font-weight="600">VAST Rack A</text>
+      <text x="1168" y="606" text-anchor="middle" class="lbl-xs">D-Nodes (DBoxes)</text>
+      <text x="1168" y="620" text-anchor="middle" class="lbl-xs">NVMe SSD + SCM</text>
+      <text x="1168" y="634" text-anchor="middle" class="lbl-xs">DASE data lake tier</text>
+      <rect class="pep" x="1110" y="648" width="34" height="14" rx="3"></rect>
+      <text x="1127" y="658" text-anchor="middle" class="pep-txt">PEP</text>
+      <text x="1168" y="672" text-anchor="middle" class="lbl-xs">per-tenant view policy</text>
+
+      <rect class="box box-ib" x="1267" y="568" width="157" height="300" rx="8"></rect>
+      <text x="1345" y="590" text-anchor="middle" class="lbl-sm" font-weight="600">VAST Rack B</text>
+      <text x="1345" y="606" text-anchor="middle" class="lbl-xs">C-Nodes (stateless)</text>
+      <text x="1345" y="620" text-anchor="middle" class="lbl-xs">NVMe-oF fabric mount</text>
+      <text x="1345" y="634" text-anchor="middle" class="lbl-xs">at boot — all-to-all</text>
+      <rect class="pep" x="1287" y="648" width="34" height="14" rx="3"></rect>
+      <text x="1304" y="658" text-anchor="middle" class="pep-txt">PEP</text>
+      <text x="1345" y="672" text-anchor="middle" class="lbl-xs">workload SVID auth</text>
+
+      <rect class="box box-ib" x="1444" y="568" width="157" height="300" rx="8"></rect>
+      <text x="1522" y="590" text-anchor="middle" class="lbl-sm" font-weight="600">ML/AI Rack</text>
+      <text x="1522" y="606" text-anchor="middle" class="lbl-xs">GPU training nodes</text>
+      <text x="1522" y="620" text-anchor="middle" class="lbl-xs">Ray / PyTorch cluster</text>
+      <text x="1522" y="634" text-anchor="middle" class="lbl-xs">synthesizes quantum data</text>
+      <rect class="pep" x="1464" y="648" width="34" height="14" rx="3"></rect>
+      <text x="1481" y="658" text-anchor="middle" class="pep-txt">PEP</text>
+      <text x="1522" y="672" text-anchor="middle" class="lbl-xs">RDMA read via NVMe-oF</text>
+
+      <!-- Quantum core internals -->
+      <rect class="box box-quantum" x="706" y="398" width="288" height="76" rx="8"></rect>
+      <text x="850" y="422" text-anchor="middle" class="lbl-sm" font-weight="600">Quantum Processing Unit</text>
+      <text x="850" y="438" text-anchor="middle" class="lbl-xs">cryostat-housed QPU</text>
+      <text x="850" y="452" text-anchor="middle" class="lbl-xs">runs algorithm intractable</text>
+      <text x="850" y="465" text-anchor="middle" class="lbl-xs">for classical compute</text>
+
+      <path class="link" d="M850,474 L850,494" marker-end="url(#arrowGray)"></path>
+
+      <rect class="box box-quantum" x="706" y="494" width="288" height="76" rx="8"></rect>
+      <text x="850" y="518" text-anchor="middle" class="lbl-sm" font-weight="600">Classical Control Cluster</text>
+      <text x="850" y="534" text-anchor="middle" class="lbl-xs">FPGA real-time control,</text>
+      <text x="850" y="548" text-anchor="middle" class="lbl-xs">error mitigation, job</text>
+      <text x="850" y="561" text-anchor="middle" class="lbl-xs">scheduler / orchestrator</text>
+
+      <path class="link" d="M850,570 L850,590" marker-end="url(#arrowGray)"></path>
+
+      <rect class="box box-quantum" x="706" y="590" width="288" height="76" rx="8"></rect>
+      <text x="850" y="612" text-anchor="middle" class="lbl-sm" font-weight="600">Dual-Homed Gateway</text>
+      <text x="850" y="628" text-anchor="middle" class="lbl-xs">IB HCA + 400GbE NIC</text>
+      <text x="850" y="641" text-anchor="middle" class="lbl-xs">L3 IPv6 fabric boundary</text>
+      <text x="850" y="654" text-anchor="middle" class="lbl-xs">workload-identity signed</text>
+      <rect class="pep" x="712" y="596" width="34" height="14" rx="3"></rect>
+      <text x="729" y="606" text-anchor="middle" class="pep-txt">PEP</text>
+
+      <rect class="box box-quantum" x="706" y="686" width="288" height="60" rx="8"></rect>
+      <text x="850" y="708" text-anchor="middle" class="lbl-sm" font-weight="600">Quantum-Safe Key Distribution</text>
+      <text x="850" y="724" text-anchor="middle" class="lbl-xs">feeds PQC keys to identity fabric / PDP</text>
+
+      <path class="link" d="M850,666 L850,686" marker-end="url(#arrowGray)"></path>
+
+      <!-- gateway physical uplinks -->
+      <path class="link-dash" d="M994,610 L1090,510" marker-end="url(#arrowGray)"></path>
+      <text x="1000" y="565" class="lbl-xs">IB HCA uplink</text>
+      <path class="link-dash" d="M706,610 L610,510" marker-end="url(#arrowGray)"></path>
+      <text x="655" y="565" class="lbl-xs" text-anchor="end">Eth NIC (mgmt)</text>
+
+      <!-- Management / PDP band -->
+      <rect class="zone-neutral-bg" x="60" y="918" width="1580" height="80" rx="12"></rect>
+      <text x="850" y="945" text-anchor="middle" class="lbl-title">Out-of-Band Management Fabric + Zero-Trust Policy Decision Point (PDP)</text>
+      <text x="850" y="964" text-anchor="middle" class="lbl-xs">Identity fabric (SPIFFE/SPIRE workload SVIDs, PKI) · continuous diagnostics &amp; SIEM · reaches every PEP shown above (not drawn, out of band)</text>
+
+      <!-- Primary data flow overlay (routed through blank interior space and margins to avoid label collisions) -->
+      <path class="flow" d="M994,628 L1020,628 L1020,780 L1090,780" marker-end="url(#arrowFlow)"></path>
+      <circle class="flow-badge-bg" cx="1020" cy="705" r="11"></circle>
+      <text x="1020" y="709" text-anchor="middle" class="flow-badge-txt">1</text>
+
+      <path class="flow" d="M1247,800 L1444,800" marker-end="url(#arrowFlow)"></path>
+      <circle class="flow-badge-bg" cx="1345" cy="800" r="11"></circle>
+      <text x="1345" y="804" text-anchor="middle" class="flow-badge-txt">2</text>
+
+      <path class="flow" d="M1444,830 L1034,830 L1034,650 L994,650" marker-end="url(#arrowFlow)"></path>
+      <circle class="flow-badge-bg" cx="1300" cy="830" r="11"></circle>
+      <text x="1300" y="834" text-anchor="middle" class="flow-badge-txt">3</text>
+
+      <path class="flow" d="M706,628 L673,628 L673,780 L178,780" marker-end="url(#arrowFlow)"></path>
+      <circle class="flow-badge-bg" cx="400" cy="780" r="11"></circle>
+      <text x="400" y="784" text-anchor="middle" class="flow-badge-txt">4</text>
+
+      <path class="flow" d="M532,868 L532,893 L1665,893 L1665,45 L1182,45" marker-end="url(#arrowFlow)"></path>
+      <circle class="flow-badge-bg" cx="1665" cy="470" r="11"></circle>
+      <text x="1665" y="474" text-anchor="middle" class="flow-badge-txt">5</text>
+    </svg>
+  </div>
+
+  <section class="legend-grid" style="display:grid; grid-template-columns: repeat(auto-fit, minmax(360px, 1fr)); gap:16px; margin-top:20px;">
+
+    <div class="diagram-card" style="padding:18px 20px;">
+      <h2 style="font-size:14px; margin:0 0 10px;">Line &amp; symbol legend</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:12.5px; color:var(--text-secondary);">
+        <tr><td style="width:110px; padding:5px 0;"><svg width="60" height="10"><line x1="0" y1="5" x2="60" y2="5" stroke="var(--text-muted)" stroke-width="1.5"/></svg></td><td>Physical link / iBGP session (underlay)</td></tr>
+        <tr><td style="padding:5px 0;"><svg width="60" height="10"><line x1="0" y1="5" x2="60" y2="5" stroke="var(--text-muted)" stroke-width="1.5" stroke-dasharray="4 4"/></svg></td><td>Secondary / control-plane / management link</td></tr>
+        <tr><td style="padding:5px 0;"><svg width="60" height="10"><line x1="0" y1="5" x2="60" y2="5" stroke="var(--zone-flow)" stroke-width="3" stroke-dasharray="1 6" stroke-linecap="round"/></svg></td><td>Primary result data flow (numbered 1–5, see below)</td></tr>
+        <tr><td style="padding:5px 0;"><span style="display:inline-block; border:1px solid var(--status-good); color:var(--status-good); font-size:9px; font-weight:700; border-radius:3px; padding:1px 5px;">PEP</span></td><td>Zero-trust Policy Enforcement Point (per NIST SP 800-207)</td></tr>
+      </table>
+    </div>
+
+    <div class="diagram-card" style="padding:18px 20px;">
+      <h2 style="font-size:14px; margin:0 0 10px;">Primary data flow — quantum → data lake → web</h2>
+      <ol style="margin:0; padding-left:18px; font-size:12.5px; color:var(--text-secondary); line-height:1.6;">
+        <li><b style="color:var(--text-primary)">Quantum → VAST:</b> job results stream from the gateway into VAST D-/C-Nodes over NVMe-oF/RDMA (IPoIB, IPv6), mTLS + workload-identity signed.</li>
+        <li><b style="color:var(--text-primary)">VAST → GPU/ML:</b> C-Nodes present the dataset to the ML/AI rack via all-to-all NVMe-oF mounts; no data movement off-fabric.</li>
+        <li><b style="color:var(--text-primary)">ML → Gateway:</b> synthesized/inferred results are handed back to the dual-homed gateway for cross-fabric egress.</li>
+        <li><b style="color:var(--text-primary)">Gateway → Nutanix:</b> gateway pushes results across the L3 IPv6 boundary (PEP-enforced) into Nutanix AOS storage on the Ethernet fabric.</li>
+        <li><b style="color:var(--text-primary)">Nutanix → Internet:</b> K8s-on-AHV webapps/APIs publish the results publicly, egressing through the border PEP/WAF and eBGP edge.</li>
+      </ol>
+    </div>
+
+    <div class="diagram-card" style="padding:18px 20px;">
+      <h2 style="font-size:14px; margin:0 0 10px;">IPv6 addressing plan (summary)</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:12px; color:var(--text-secondary);">
+        <tr style="color:var(--text-primary); font-weight:600;"><td style="padding:4px 6px 4px 0;">Scope</td><td style="padding:4px 6px 4px 0;">Prefix type</td><td style="padding:4px 0;">Example</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Datacenter-wide underlay</td><td style="padding:4px 6px 4px 0;">ULA /32</td><td style="padding:4px 0;">fd10:dc01::/32</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Per fabric domain</td><td style="padding:4px 6px 4px 0;">ULA /40</td><td style="padding:4px 0;">fd10:dc01:1000::/40 (IB)</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Per pod</td><td style="padding:4px 6px 4px 0;">ULA /48</td><td style="padding:4px 0;">fd10:dc01:1100::/48</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Per rack / VLAN</td><td style="padding:4px 6px 4px 0;">ULA /56 → /64</td><td style="padding:4px 0;">fd10:dc01:1101:0a::/64</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Point-to-point links</td><td style="padding:4px 6px 4px 0;">ULA /127</td><td style="padding:4px 0;">RFC 6164</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Public / Nutanix front end</td><td style="padding:4px 6px 4px 0;">GUA /48</td><td style="padding:4px 0;">2600:1f18:xxxx::/48</td></tr>
+      </table>
+    </div>
+
+    <div class="diagram-card" style="padding:18px 20px;">
+      <h2 style="font-size:14px; margin:0 0 10px;">BGP AS plan (summary)</h2>
+      <table style="width:100%; border-collapse:collapse; font-size:12px; color:var(--text-secondary);">
+        <tr style="color:var(--text-primary); font-weight:600;"><td style="padding:4px 6px 4px 0;">Scope</td><td style="padding:4px 0;">ASN / session type</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Datacenter core (single AS)</td><td style="padding:4px 0;">AS 4200000001 (32-bit private) — iBGP, hierarchical route-reflection</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Route reflectors</td><td style="padding:4px 0;">RR-A / RR-B clusters, redundant per fabric domain</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Upstream transit</td><td style="padding:4px 0;">eBGP to AS 65551 at Border Router A</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Partner / peering</td><td style="padding:4px 0;">eBGP to AS 65552 at Border Router B</td></tr>
+        <tr><td style="padding:4px 6px 4px 0;">Route hygiene</td><td style="padding:4px 0;">max-prefix limits, RPKI origin validation, BGP flowspec, no default route accepted without filtering</td></tr>
+      </table>
+    </div>
+
+  </section>
+
+  <footer style="margin-top:22px; color:var(--text-muted); font-size:11.5px; line-height:1.6;">
+    Reference-pod scale: one Quantum Core Pod + one InfiniBand data-lake block + one Ethernet web-front-end block, bordered by one edge pod. In production this unit repeats N× behind additional spine/RR capacity, following Google's Jupiter pattern of horizontally scaling aggregation blocks rather than growing a single spine indefinitely.
+  </footer>
+</div>
+</body>
+</html>
